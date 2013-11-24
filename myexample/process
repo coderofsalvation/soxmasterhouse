@@ -1,0 +1,55 @@
+# 
+# bashmasteraudio configuration file 
+#
+# probably only I and god know what these params are for.
+# but at least you now know somebody actually used this tool :D
+
+SIDE_SHIFT_SAMPLES=0s               # negative delay side file with nsamples
+SIDE_ADD_SAMPLES=0s                 # positive delay side file with nsamples
+INPUTGAIN_MID=+3                    # boost mid (will be limited by 0)
+INPUTGAIN_SIDE=+12
+OUTPUTGAIN_SIDE=-10                 # tweak amplitude of side
+REVERB_SIDE=-15                     # reverb added to side in dB
+SIDE_TRANSIENTS=0.5                 # boost transients (usually hihats etc)
+SIDE_KICK_FREQ=90                   # boost sub in side (I know this is not done)
+SIDE_KICK_GAIN=10                   # boost sub in side (I know this is not done)
+
+[[ -f /usr/lib/ladspa ]] && export LADSPA_PATH="/usr/lib/ladspa"
+[[ ! -f /usr/lib/ladspa/transient_1206.so ]] && echo "please download steve Harris's pluginpack (hint: apt-get install swh-plugins)" && exit
+
+
+process_pre(){
+  input="$1"; output="$2"; echo "preprocessing"
+  # aplay "$input" -d 2s # uncomment this to preview the dry mid-channel
+}
+
+process_mid(){
+  input="$1"; output="$2"; echo "processing mid of M/S"
+  # aplay "$input" -d 2s # uncomment this to preview the dry mid-channel
+  sox "$input" "$output" gain $INPUTGAIN_MID gain -l 0 norm && cp "$output" "$input"
+}
+
+process_side(){
+  input="$1"; output="$2"; echo "processing side of M/S"
+  # aplay "$input" -d 2s # uncomment this to preview the dry mid-channel
+
+  # add boost in high *and* low (I know this is not done)
+  sox "$input" "$output" treble +10 equalizer $SIDE_KICK_FREQ 0.8 $SIDE_KICK_GAIN && mv "$output" "$input"
+  # delay in past/future since some plugins introduce latency
+  [[ "$SIDE_SHIFT_SAMPLES" != "0s" ]] && sox "$input" "$output" trim $SIDE_SHIFT_SAMPLES && mv "$output" "$input"
+  [[ "$SIDE_ADD_SAMPLES"   != "0s" ]] && sox "$input" "$output" pad  $SIDE_ADD_SAMPLES && mv "$output" "$input"
+  # boost transients
+  sox "$input" "$output" ladspa transient_1206 $SIDE_TRANSIENTS 0.5 ; mv "$output" "$input"
+  # add decimator limiter
+  sox "$input" "$output" gain $INPUTGAIN_SIDE gain -l 0 ladspa decimator_1202 24.0 27838 norm gain $OUTPUTGAIN_SIDE; cp "$output" "$input"
+}
+
+process_post(){
+  input="$1"; output="$2"; echo "post processing "
+  # make me some mp3's to upload as well
+  file="$(echo "$output" | sed 's/\.wav//g' )"
+  lame --preset insane "$input" "$file"_hq.mp3
+  lame -b 192 "$input" "$file.mp3"
+  return 0
+}
+

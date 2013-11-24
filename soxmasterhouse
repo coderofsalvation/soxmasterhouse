@@ -1,0 +1,171 @@
+#!/bin/bash
+#
+# Copyright 2013 sqz. All rights reserved.
+# 
+# Redistribution and use in source and binary forms, with or without modification, are
+# permitted provided that the following conditions are met:
+# 
+#    1. Redistributions of source code must retain the above copyright notice, this list of
+#       conditions and the following disclaimer.
+# 
+#    2. Redistributions in binary form must reproduce the above copyright notice, this list
+#       of conditions and the following disclaimer in the documentation and/or other materials
+#       provided with the distribution.
+# 
+# THIS SOFTWARE IS PROVIDED BY sqz ``AS IS'' AND ANY EXPRESS OR IMPLIED
+# WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
+# FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL sqz OR
+# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+# ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+# ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+# 
+# The views and conclusions contained in the software and documentation are those of the
+# authors and should not be interpreted as representing official policies, either expressed
+# or implied, of sqz.
+# 
+
+#UNIQUE="$(whoami)-$(date +%s)"
+UNIQUE="flop"
+FILEME="$(basename $0)"
+TMPFILE="/tmp/$FILEME-$UNIQUE.tmp"
+SELF_PATH="$(dirname $(readlink -f $0) )"
+CUR_PATH="$(pwd)"
+TPL_PROCESS='# 
+# bashmasteraudio configuration file 
+#
+
+[[ -f /usr/lib/ladspa ]] && export LADSPA_PATH="/usr/lib/ladspa"
+[[ ! -f /usr/lib/ladspa/transient_1206.so ]] && echo "please download steve Harris pluginpack (hint: apt-get install swh-plugins)" && exit
+
+process_pre(){
+  input="$1"; output="$2"; echo "preprocessing"
+  # aplay "$input" -d 2s # uncomment this to preview the dry signal
+}
+
+process_mid(){
+  input="$1"; output="$2"; echo "processing mid of M/S"
+  # aplay "$input" -d 2s # uncomment this to preview the dry signal
+}
+
+process_side(){
+  input="$1"; output="$2"; echo "processing side of M/S"
+  # aplay "$input" -d 2s # uncomment this to preview the dry signal
+}
+
+process_post(){
+  input="$1"; output="$2"; echo "post processing "
+  # aplay "$input" -d 2s # uncomment this to preview the dry signal
+}
+'
+  
+_usage(){
+  printf "Usage: \n\n"
+  grep "^[^_].\+(){$" $0 | while read line; do
+    local cmd=$(echo "$line" | sed "s/(){//g")
+    local info=$(grep -C0 -A0 -B1 "$cmd(){" $0 | sed "N;s/\n.*//g" )
+    printf "    $0 %-20s %-40s\n" "$cmd" "$info" | grep "#"
+  done; echo "";
+  echo "  put PPRE/PMID/PSIDE/PPOST=nseconds before the command to preview every stage"
+  echo "  and use SLEEP=nseconds to indicate the break between the listeningstage"
+  echo "  also use MANUAL=1 to manually edit the mid/side files in your editor"
+  echo "  EXAMPLE: 2seconds pre- and mid-stage preview: SLEEP=2 PPRE=2 PMID=2 ./bashmasteraudio process foo.wav mypreset"
+  echo ""
+}
+
+_checkrequirements(){
+  ok=0
+  if ! which sox   &>/dev/null; then "[!] please install sox first"; fi
+  if ! which aplay &>/dev/null; then "[!] please install alsa first"; fi
+}
+
+_getfilehash(){
+  echo "$1" | md5sum
+}
+
+# <presetfolder>                     <-- inits presetfolder
+init(){
+  dir="$1"
+  [[ -d "$dir" ]] && echo "$dir already exist" && exit 1
+  mkdir $dir && echo "created $dir"
+  echo "$TPL_PROCESS" > $dir/process && echo "created $dir/process"
+}
+
+# <audiofile.wav> <presetfolder> [00:00:00.00 00:00:00.20] 
+process(){
+  [[ ! -n "$1" ]] || [[ ! -n "$2" ]] && _usage && exit 1
+  file="$1"; preset="$2"; trimmedfile="$TMPFILE.trimmed.wav"
+  [[ ! -d "$preset" ]] && echo "presetdir $preset not found" && exit 1
+  [[ ! -f "$preset/process" ]] && echo "'process' file not found in presetdir $preset" && exit 1
+  [[ ! -f "$file"   ]] && echo "file $file not found" && exit 1 
+  mid="$TMPFILE.mid.wav"; side="$TMPFILE.side.wav"
+  ms="$TMPFILE.ms.wav"  ; out="$CUR_PATH/$( echo "$file" | sed 's/\.wav//g').soxmasterhouse.wav"
+  source "$preset/process" || exit 1
+  echo "using preset $preset/process"
+  soxi "$file"
+  if [[ -n "$3" ]]; then 
+    echo "trimming file to $trim"; trim="$(echo "$3" | sed 's/ / =/g')"
+    sox "$file" "$trimmedfile" trim ${trim} 
+  else cp "$file" "$trimmedfile"; fi 
+  process_pre "$trimmedfile" "$trimmedfile.wav"; [[ -f "$trimmedfile.wav" ]] && mv "$trimmedfile.wav" "$trimmedfile"
+  [[ -n $PPRE ]] && echo "[previewing pre]"  && aplay "$trimmedfile" -d$PPRE && [[ -n $SLEEP ]] && sleep "$SLEEP"s
+
+  echo "converting Left/Right stereo to Mid/Side stereo"
+  sox "$trimmedfile" "$mid" remix 1,2
+  process_mid "$mid" "$mid.wav"; [[ -f "$mid.wav" ]] && mv "$mid.wav" "$mid"
+  [[ -n $PMID ]] && echo "[previewing mid]"  && aplay "$mid" -d$PMID && [[ -n $SLEEP ]] && echo sleep "$SLEEP"s
+
+  sox "$trimmedfile" "$side" remix 1v0.5,2v-0.5
+  process_side "$side" "$side.wav"; [[ -f "$side.wav" ]] && mv "$side.wav" "$side"
+  [[ -n $PSIDE ]] && echo "[previewing side]" && aplay "$side" -d$PSIDE && [[ -n $SLEEP ]] && sleep "$SLEEP"s
+  [[ -n $MANUAL ]] && read -p "[soxmasterhouse> open/edit $side and $mid, and press enter when finished editing [enter]" key
+  echo "merging Mid and Side signals into a stereo file"
+  sox -M "$mid" "$side" "$ms"
+  echo "converting Mid/Sid stereo back to L/R stereo"
+  # (note the "-m" flag, meaning that we are adding full amplitude-signals)
+  sox "$ms" "$out" remix -m 1,2 1,2i
+  process_post "$out" "$out.wav"; [[ -f "$out.wav" ]] && mv "$out.wav" "$out"
+  sox "$out" "$out.wav" norm; mv "$out.wav" "$out"
+  [[ -n $PPOST ]] && aplay "$out" -d$PPOST
+  cleanup
+}
+
+cleanup(){
+  rm $TMPFILE*
+}
+
+manual(){
+  if [ "$1" != "--manual" ]; then return 0; fi
+  local tempfile="/tmp/foo.1"
+  hash pod2man 2>&-
+  if [ $? == 1 ]; then echo "please install perl"; exit; fi
+  SCRIPT=`readlink -f $0`
+  echo "(please wait..)"
+  pod2man $SCRIPT > "$tempfile"
+  clear
+  if [ -f "$tempfile" ]; then man "$tempfile"; rm "$tempfile"; fi
+  exit 0
+}
+
+manual "$1" && test $# -lt 2 && _checkrequirements && _usage && exit 65
+"$@" | while read line; do echo "[soxmasterhouse] $line"; done
+exit 0
+<<=cut
+=head1 NAME
+   foo - a great cmdline utility
+=head1 SYNOPSIS
+   This utility demystifies the wonderfull world of ...
+=head1 DESCRIPTION
+It does x and y..
+
+HINT: set AUDIT=1 to preview all stages, example: AUDIT=1 ./bashmasteraudio process ...(and so on)..
+
+=head1 SEE ALSO
+L<foo>, L<bar>
+=head1 LICENSE
+BSD License (so everybody can enjoy it)
+=head1 AUTHOR
+B<Y>our name
+=cut
