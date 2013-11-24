@@ -15,7 +15,7 @@ M/S processing.
     ./soxmasterhouse init mymasteringpreset
     ./soxmasterhouse process myfile.wav mymasteringpreset "00:00:01.00 00:04:01.00"
  
-Or usually this is done to preview certain stages.
+Or do this to have audiopreviews between every stage 
 
     SLEEP=1 PPRE=2 PMID=4 PSIDE=4 PPOST=5 ./soxmasterhouse process myfile.wav mymasteringpreset "00:00:01.00 00:04:01.00"
 
