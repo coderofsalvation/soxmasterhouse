@@ -19,7 +19,7 @@ Or do this to have audiopreviews between every stage
 
     SLEEP=1 PPRE=2 PMID=4 PSIDE=4 PPOST=5 ./soxmasterhouse process myfile.wav mymasteringpreset "00:00:01.00 00:04:01.00"
 
-The above command will process the mid/side audio using my preset, and at every step (preprocessing,midprocessing,sideprocessing,postprocessing) it will preview the result to me (with 1 second of sleep in between the previewing).
+The above command will process the mid/side audio using my preset, and at every step (preprocessing,midprocessing,sideprocessing,postprocessing) it will preview (n seconds) the result to me (with 1 second of sleep in between the previewing).
   
 This will allow me to fire up my editor (audacity/wavosaur) to analyze/edit the mid- or side-file before merging them together:
 
