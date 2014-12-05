@@ -13,7 +13,7 @@ M/S processing.
     git clone https://github.com/coderofsalvation/soxmasterhouse.git
     cd soxmasterhouse
     ./soxmasterhouse init mymasteringpreset
-    ./soxmasterhouse process myfile.wav mymasteringpreset "00:00:01.00 00:04:01.00"
+    ./soxmasterhouse process myfile.wav mymasteringpreset
  
 Or do this to have audiopreviews between every stage 
 
