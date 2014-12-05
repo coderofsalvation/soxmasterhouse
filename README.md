@@ -30,7 +30,7 @@ This will allow me to fire up my editor (audacity/wavosaur) to analyze/edit the 
 Well thats up to you, you can go crazy with sox (Which supports ladspa) or MrsWatson/Misswatson for VST. however, this is your starting point after initing a preset:
 
     # 
-    # bashmasteraudio configuration file 
+    # bashmasterhouse configuration file 
     #
     
     process_pre(){
@@ -53,7 +53,13 @@ Well thats up to you, you can go crazy with sox (Which supports ladspa) or MrsWa
       # aplay "$input" -d 2s # uncomment this to preview the dry signal
     }
 
-For a more concrete example see the 'myexample'-dir.
+### Examples
+
+For a more concrete example see the 'myexample'-dir, or replace the 'process'-file with these ones:
+
+* [mid/side limiter + reverb on side](https://gist.github.com/coderofsalvation/fdc5f055cd140d30f564)
+* [electribe L+R normalizer + TAP scaling limiter ladspa + reverb on sides](https://gist.github.com/coderofsalvation/3b69ec0c97bd30a7f0e3)
+* [fft maximizer](https://gist.github.com/coderofsalvation/24721097737d6da5259d) (beta)
 
 ### Requirements ###
 
